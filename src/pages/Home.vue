@@ -1,106 +1,87 @@
 <template>
-  <b-container fluid>
-    <b-row>
+  <b-container class="home">
+
+    <b-row class="text-center">
       <b-col>
-        <b-row>
-          <b-col>
-            <b-button class="w-100" @click="$modal.show('adicionar-gastos')">
-              Adicionar gasto
-            </b-button>
-          </b-col>
-        </b-row>
+        <h1>Leitor QR Code Notas Fiscais</h1>
       </b-col>
     </b-row>
     <b-row>
       <b-col>
-        <modal width="90%" name="adicionar-gastos" adaptive clickToClose height="90%">
-          <b-container>
-            <div class="carregando" v-show="carregando">
-              <b-row class="vh-100 text-center" no-gutters align-v="center">
+        <b-button block @click="mostrarQr = !mostrarQr">
+          Ler código
+        </b-button>
+      </b-col>
+    </b-row>
+    <b-row align-h="center" class="mt-2" v-show="mostrarQr">
+      <b-col cols="auto" class="leitor">
+          <qrcode-stream :camera="camera" @decode="codigoLido" :track="paintOutline">
+            <div  >
+              <b-row no-gutters align-v="center" v-show="carregando" class="carregando text-center">
                 <b-col>
                   <h2><b-spinner label="Spinning"></b-spinner> Buscando dados...</h2>
                 </b-col>
               </b-row>
             </div>
-            <b-row class="text-center">
-              <b-col>
-                <h3>Adicionar gasto</h3>
-              </b-col>
-            </b-row>
-            <b-row>
-              <b-col>
-                <qrcode-stream :camera="camera" @decode="codigoLido" :track="paintOutline"></qrcode-stream>
-              </b-col>
-            </b-row>
-            <b-row>
-              <b-col>
-                <span><strong>Estabelecimento: </strong>{{ dados.estabelecimento }}</span>
-              </b-col>
-            </b-row>
-            <b-row>
-              <b-col>
-                <span><strong>Dia e hora: </strong>{{ dados.dia}} {{ dados.hora}}</span>
-              </b-col>
-            </b-row>
-            <b-row>
-              <b-col>
-                <span><strong>Forma de pagamento: </strong>{{ dados.formaPagamento }}</span>
-              </b-col>
-            </b-row>
-            <b-row>
-              <b-col>
-                <b-table striped hover :items="itens" :fields="campos">
+          </qrcode-stream>
 
-                </b-table>
-              </b-col>
-            </b-row>
-            <b-row>
-              <b-col>
-                <b-button block variant="danger">
-                  Cancelar
-                </b-button>
-              </b-col>
-              <b-col>
-                <b-button block>
-                  Salvar dados
-                </b-button>
-              </b-col>
-            </b-row>
-          </b-container>
-        </modal>
       </b-col>
     </b-row>
+    <b-row v-show="mostrarTabela" class="mt-2">
+      <b-col>
+        <b-table head-variant="dark" no-border-collapse striped hover :items="itens" :fields="campos" sticky-header small bordered></b-table>
+      </b-col>
+    </b-row>
+    <b-row>
+      <b-col>
+
+      </b-col>
+    </b-row>
+    <b-row v-show="mostrarBotao">
+      <b-col>
+          <b-button variant="success" @click="criarExcel" block>
+            Gerar Excel
+          </b-button>
+      </b-col>
+    </b-row>
+
   </b-container>
 </template>
 
 <script>
-
-import api from "../services/api"
+import api from "@/services/api";
 
 export default {
   name: "Home",
-  data() {
-    return {
+  data(){
+    return{
+      camera: 'auto',
       itens: [],
       campos: [
         {key: 'nome', label: 'Nome', sortable: true, thClass: 'text-center'},
         {key: 'valor', label: 'Valor', sortable: true, thClass: 'text-center'},
+        {key: 'quantidade', label: 'Quantidade', sortable: true, thClass: 'text-center'},
+        {key: 'unidade', label: 'Unidade', sortable: true, thClass: 'text-center'},
       ],
       dados: [],
+      mostrarQr: false,
+      mostrarTabela: false,
       carregando: false,
-      camera: 'auto'
+      mostrarBotao: false
     }
   },
-  methods: {
+  methods:{
     async codigoLido(link) {
       this.carregando = true
       this.camera = 'off'
       await api.get("/consultar", {params: {link: link}}).then(resposta => {
         this.itens = resposta.data.itens
-        this.dados = resposta.data
+        this.dados = [resposta.data]
         console.log(resposta)
         this.carregando = false
-        // this.camera = 'auto'
+        this.antesBusca = false
+        this.mostrarTabela = true
+        this.mostrarBotao = true
       })
     },
     paintOutline(detectedCodes, ctx) {
@@ -119,18 +100,36 @@ export default {
         ctx.stroke();
       }
     },
+    async criarExcel(){
+      console.log(this.dados)
+      let dados = this.dados
+      await api.post("gerar_excel", { dados }, {responseType: 'arraybuffer'}).then(resposta => {
+        let blob = new Blob([resposta.data], {type: resposta.headers['content-type']});
+        let link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob);
+        link.download = "teste";
+        link.click();
+      })
+    }
   }
 }
 </script>
 
-<style>
-
+<style scoped>
+.leitor{
+  width: 40%;
+}
 .carregando {
   position: absolute;
   width: 100%;
   height: 100%;
   background-color: rgba(150,150,150,0.7);
   z-index: 1;
-  margin-left: -15px;
+}
+
+.home{
+  background-color: rgb(230,230,230);
+  border-radius: 5px;
+  padding-bottom: 10px;
 }
 </style>
